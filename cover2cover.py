@@ -113,10 +113,10 @@ def convert_method(j_method, j_lines):
 
     return c_method
 
-def convert_class(j_class, j_package):
+def convert_class(j_class, j_package, source_root):
     c_class = ET.Element('class')
     c_class.set('name',     j_class.attrib['name'].replace('/', '.'))
-    c_class.set('filename', guess_filename(j_class.attrib['name']))
+    c_class.set('filename', source_root + '/' + guess_filename(j_class.attrib['name']))
 
     all_j_lines = list(find_lines(j_package, c_class.attrib['filename']))
 
@@ -131,37 +131,33 @@ def convert_class(j_class, j_package):
 
     return c_class
 
-def convert_package(j_package):
+def convert_package(j_package, source_root):
     c_package = ET.Element('package')
     c_package.attrib['name'] = j_package.attrib['name'].replace('/', '.')
 
     c_classes = ET.SubElement(c_package, 'classes')
     for j_class in j_package.findall('class'):
-        c_classes.append(convert_class(j_class, j_package))
+        c_classes.append(convert_class(j_class, j_package, source_root))
 
     add_counters(j_package, c_package)
 
     return c_package
 
-def convert_root(source, target, source_roots):
+def convert_root(source, target, source_root):
     target.set('timestamp', str(int(source.find('sessioninfo').attrib['start']) / 1000))
-
-    sources     = ET.SubElement(target, 'sources')
-    for s in source_roots:
-        ET.SubElement(sources, 'source').text = s
 
     packages = ET.SubElement(target, 'packages')
     
     for group in source.findall('group'):
         for package in group.findall('package'):
-            packages.append(convert_package(package))
+            packages.append(convert_package(package, source_root))
 
     for package in source.findall('package'):
-        packages.append(convert_package(package))
+        packages.append(convert_package(package, source_root))
 
     add_counters(source, target)
 
-def jacoco2cobertura(filename, source_roots):
+def jacoco2cobertura(filename, source_root):
     if filename == '-':
         root = ET.fromstring(sys.stdin.read())
     else:
@@ -169,16 +165,16 @@ def jacoco2cobertura(filename, source_roots):
         root = tree.getroot()
 
     into = ET.Element('coverage')
-    convert_root(root, into, source_roots)
+    convert_root(root, into, source_root)
     print('<?xml version="1.0" ?>')
     print(ET.tostring(into, encoding='unicode'))
 
 if __name__ == '__main__':
     if len(sys.argv) < 2:
-        print("Usage: cover2cover.py FILENAME [SOURCE_ROOTS]")
+        print("Usage: cover2cover.py FILENAME [SOURCE_ROOT]")
         sys.exit(1)
 
     filename    = sys.argv[1]
-    source_roots = sys.argv[2:] if 2 < len(sys.argv) else '.'
+    source_root = sys.argv[2] if 2 < len(sys.argv) else '.'
 
-    jacoco2cobertura(filename, source_roots)
+    jacoco2cobertura(filename, source_root)
